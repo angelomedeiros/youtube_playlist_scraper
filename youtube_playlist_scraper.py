@@ -99,7 +99,7 @@ def get_videos_metadata(youtube, video_ids: List[str]) -> Dict[str, Dict]:
     return meta
 
 # ---------- main ----------
-def main(api_key: str, out_file: Path, split_by_playlist: bool = False, channel: str = "@3blue1brown"):
+def main(api_key: str, out_file: Path, split_by_playlist: bool = False, channel: str = None):
     youtube = build("youtube", "v3", developerKey=api_key, cache_discovery=False)
     channel_id = get_channel_id(youtube, channel)
 
@@ -205,8 +205,8 @@ if __name__ == "__main__":
         help="Gera um CSV separado para cada playlist na pasta 'playlists/<canal>'"
     )
     ap.add_argument(
-        "-c", "--channel", default="@3blue1brown",
-        help="Handle do canal (padrão: %(default)s)"
+        "-c", "--channel", required=True,
+        help="Handle do canal (ex: @NomeDoCanal)"
     )
     args = ap.parse_args()
     main(args.api_key, Path(args.out), args.split, args.channel)
