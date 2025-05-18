@@ -56,19 +56,28 @@ python youtube_playlist_scraper.py --api_key SUA_CHAVE_API
 ### Opções Disponíveis
 
 - `--api_key`: (Obrigatório) Sua chave da YouTube Data API v3
-- `-c, --channel`: (Obrigatório) Handle do canal (ex: "@NomeDoCanal")
+- `-c, --channel`: Handle do canal (ex: "@NomeDoCanal")
+- `-p, --playlist`: URL da playlist do YouTube
 - `-o, --out`: Nome do arquivo CSV de saída (padrão: "playlists.csv")
 - `--split`: Gera um arquivo CSV separado para cada playlist
 
+Nota: Você deve fornecer ou `-c/--channel` ou `-p/--playlist`, mas não ambos.
+
 ### Exemplos
 
-1. Baixar playlists de um canal:
+1. Baixar todas as playlists de um canal:
 
 ```bash
 python youtube_playlist_scraper.py --api_key SUA_CHAVE_API -c "@NomeDoCanal"
 ```
 
-2. Gerar um arquivo CSV separado para cada playlist:
+2. Baixar uma única playlist:
+
+```bash
+python youtube_playlist_scraper.py --api_key SUA_CHAVE_API -p "https://www.youtube.com/playlist?list=ID_DA_PLAYLIST"
+```
+
+3. Gerar um arquivo CSV separado para cada playlist de um canal:
 
 ```bash
 python youtube_playlist_scraper.py --api_key SUA_CHAVE_API -c "@NomeDoCanal" --split
@@ -80,9 +89,12 @@ Os arquivos são organizados da seguinte forma:
 
 ```
 playlists/
-  nome-do-canal/
+  nome-do-canal/           # Quando usar -c/--channel
     playlist1.csv
     playlist2.csv
+    ...
+  single_playlists/       # Quando usar -p/--playlist
+    playlist1.csv
     ...
 ```
 
