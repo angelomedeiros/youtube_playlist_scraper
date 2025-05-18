@@ -1,20 +1,22 @@
 # YouTube Playlist Scraper
 
-Um script Python para baixar metadados de playlists do YouTube usando a YouTube Data API v3. O script pode gerar um único arquivo CSV com todas as playlists ou arquivos separados para cada playlist.
+English | [Portuguese version](README_PT.md)
 
-## Funcionalidades
+A Python script to download metadata from YouTube playlists using the YouTube Data API v3. The script can generate either a single CSV file with all playlists or separate files for each playlist.
 
-- Baixa metadados de todas as playlists públicas de um canal do YouTube
-- Suporta múltiplos canais
-- Organiza arquivos em diretórios por canal
-- Ignora vídeos indisponíveis
-- Gera arquivos CSV com:
-  - Nome da playlist
-  - Título do vídeo
-  - Descrição
-  - Duração
+## Features
 
-## Requisitos
+- Downloads metadata from all public playlists of a YouTube channel
+- Supports multiple channels
+- Organizes files in channel-specific directories
+- Skips unavailable videos
+- Generates CSV files with:
+  - Playlist name
+  - Video title
+  - Description
+  - Duration
+
+## Requirements
 
 - Python 3.6+
 - Google API Python Client
@@ -22,106 +24,106 @@ Um script Python para baixar metadados de playlists do YouTube usando a YouTube 
 - tqdm
 - dateutil
 
-## Instalação
+## Installation
 
-1. Clone o repositório:
+1. Clone the repository:
 
 ```bash
-git clone https://github.com/seu-usuario/youtube-playlist-scraper.git
+git clone https://github.com/your-username/youtube-playlist-scraper.git
 cd youtube-playlist-scraper
 ```
 
-2. Instale as dependências:
+2. Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Obtenha uma chave de API do YouTube:
-   - Acesse o [Google Cloud Console](https://console.cloud.google.com/)
-   - Crie um novo projeto
-   - Ative a YouTube Data API v3
-   - Crie uma chave de API
+3. Get a YouTube API key:
+   - Visit the [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project
+   - Enable the YouTube Data API v3
+   - Create an API key
 
-## Uso
+## Usage
 
-### Comando Básico
-
-```bash
-python youtube_playlist_scraper.py --api_key SUA_CHAVE_API
-```
-
-### Opções Disponíveis
-
-- `--api_key`: (Obrigatório) Sua chave da YouTube Data API v3
-- `-c, --channel`: Handle do canal (padrão: "@3blue1brown")
-- `-o, --out`: Nome do arquivo CSV de saída (padrão: "playlists.csv")
-- `--split`: Gera um arquivo CSV separado para cada playlist
-
-### Exemplos
-
-1. Baixar playlists do canal padrão:
+### Basic Command
 
 ```bash
-python youtube_playlist_scraper.py --api_key SUA_CHAVE_API
+python youtube_playlist_scraper.py --api_key YOUR_API_KEY
 ```
 
-2. Baixar playlists de um canal específico:
+### Available Options
+
+- `--api_key`: (Required) Your YouTube Data API v3 key
+- `-c, --channel`: Channel handle (default: "@3blue1brown")
+- `-o, --out`: Output CSV filename (default: "playlists.csv")
+- `--split`: Generate a separate CSV file for each playlist
+
+### Examples
+
+1. Download playlists from the default channel:
 
 ```bash
-python youtube_playlist_scraper.py --api_key SUA_CHAVE_API -c "@NomeDoCanal"
+python youtube_playlist_scraper.py --api_key YOUR_API_KEY
 ```
 
-3. Gerar um arquivo CSV separado para cada playlist:
+2. Download playlists from a specific channel:
 
 ```bash
-python youtube_playlist_scraper.py --api_key SUA_CHAVE_API --split
+python youtube_playlist_scraper.py --api_key YOUR_API_KEY -c "@ChannelName"
 ```
 
-4. Combinar opções:
+3. Generate a separate CSV file for each playlist:
 
 ```bash
-python youtube_playlist_scraper.py --api_key SUA_CHAVE_API -c "@NomeDoCanal" --split
+python youtube_playlist_scraper.py --api_key YOUR_API_KEY --split
 ```
 
-## Estrutura de Arquivos
+4. Combine options:
 
-Os arquivos são organizados da seguinte forma:
+```bash
+python youtube_playlist_scraper.py --api_key YOUR_API_KEY -c "@ChannelName" --split
+```
+
+## File Structure
+
+Files are organized as follows:
 
 ```
 playlists/
-  nome-do-canal/
+  channel-name/
     playlist1.csv
     playlist2.csv
     ...
 ```
 
-## Formato do CSV
+## CSV Format
 
-Os arquivos CSV gerados contêm as seguintes colunas:
+The generated CSV files contain the following columns:
 
-- `playlist`: Nome da playlist
-- `videoTitle`: Título do vídeo
-- `description`: Descrição do vídeo
-- `duration`: Duração do vídeo (formato HH:MM:SS)
+- `playlist`: Playlist name
+- `videoTitle`: Video title
+- `description`: Video description
+- `duration`: Video duration (HH:MM:SS format)
 
-## Notas
+## Notes
 
-- O script ignora automaticamente vídeos indisponíveis ou privados
-- Playlists vazias são puladas
-- O script mostra mensagens informativas sobre vídeos indisponíveis
-- Os nomes dos arquivos são sanitizados para remover caracteres inválidos
+- The script automatically skips unavailable or private videos
+- Empty playlists are skipped
+- The script shows informative messages about unavailable videos
+- Filenames are sanitized to remove invalid characters
 
-## Limitações
+## Limitations
 
-- Requer uma chave de API do YouTube
-- Está sujeito às cotas da YouTube Data API v3
-- Só pode acessar playlists públicas
+- Requires a YouTube API key
+- Subject to YouTube Data API v3 quotas
+- Can only access public playlists
 
-## Contribuindo
+## Contributing
 
-Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou enviar pull requests.
+Contributions are welcome! Feel free to open issues or submit pull requests.
 
-## Licença
+## License
 
-Este projeto está licenciado sob a MIT License - veja o arquivo [LICENSE](LICENSE) para detalhes.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
