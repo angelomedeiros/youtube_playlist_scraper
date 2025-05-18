@@ -1,0 +1,5 @@
+# Ignore all CSV files
+*.csv
+
+# Ignore the playlists directory and its contents
+playlists/

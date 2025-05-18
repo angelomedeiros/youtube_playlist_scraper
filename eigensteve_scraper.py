@@ -85,10 +85,13 @@ def get_videos_metadata(youtube, video_ids: List[str]) -> Dict[str, Dict]:
     for i in range(0, len(video_ids), 50):
         chunk = video_ids[i : i + 50]
         resp = youtube.videos().list(
-            id=",".join(chunk), part="snippet,contentDetails"
+            id=",".join(chunk), part="snippet,contentDetails,status"
         ).execute()
         for item in resp["items"]:
             vid = item["id"]
+            # Skip if video is unavailable or private
+            if item.get("status", {}).get("privacyStatus") != "public":
+                continue
             meta[vid] = {
                 "title": item["snippet"]["title"],
                 "description": item["snippet"]["description"].replace("\n", " ").strip(),
@@ -97,33 +100,100 @@ def get_videos_metadata(youtube, video_ids: List[str]) -> Dict[str, Dict]:
     return meta
 
 # ---------- main ----------
-def main(api_key: str, out_file: Path):
+def main(api_key: str, out_file: Path, split_by_playlist: bool = False):
     youtube = build("youtube", "v3", developerKey=api_key, cache_discovery=False)
     channel_id = get_channel_id(youtube, "@Eigensteve")
 
-    rows = []
-    for pl in tqdm(iter_playlists(youtube, channel_id), desc="Playlists"):
-        video_ids = iter_videos_in_playlist(youtube, pl["id"])
-        meta = get_videos_metadata(youtube, video_ids)
-        for vid in video_ids:            # preserva a ordem da playlist
-            info = meta.get(vid, {})
-            rows.append({
-                "playlist": pl["title"],
-                "videoTitle": info.get("title", ""),
-                "description": info.get("description", ""),
-                "duration": info.get("duration", ""),
-            })
+    if split_by_playlist:
+        # Create playlists directory
+        playlists_dir = Path("playlists")
+        playlists_dir.mkdir(exist_ok=True)
+        
+        # Process each playlist separately
+        for pl in tqdm(iter_playlists(youtube, channel_id), desc="Playlists"):
+            rows = []
+            video_ids = iter_videos_in_playlist(youtube, pl["id"])
+            if not video_ids:  # Skip if no videos found
+                print(f"⚠️  Playlist '{pl['title']}' está vazia, pulando...")
+                continue
+                
+            meta = get_videos_metadata(youtube, video_ids)
+            skipped = 0
+            for vid in video_ids:            # preserva a ordem da playlist
+                info = meta.get(vid)
+                if not info:  # Skip if video is unavailable
+                    skipped += 1
+                    continue
+                rows.append({
+                    "playlist": pl["title"],
+                    "videoTitle": info["title"],
+                    "description": info["description"],
+                    "duration": info["duration"],
+                })
+            
+            if skipped > 0:
+                print(f"ℹ️  {skipped} vídeo(s) indisponível(is) na playlist '{pl['title']}'")
+            
+            if not rows:  # Skip if no valid data was collected
+                print(f"⚠️  Nenhum dado válido encontrado para '{pl['title']}', pulando...")
+                continue
+                
+            # Generate filename for this playlist (sanitize filename and ensure .csv extension)
+            safe_title = "".join(c for c in pl['title'] if c.isalnum() or c in (' ', '-', '_')).strip()
+            playlist_filename = playlists_dir / f"{safe_title}.csv"
+            
+            df = pd.DataFrame(rows, columns=["playlist", "videoTitle", "description", "duration"])
+            df.to_csv(playlist_filename, index=False, encoding="utf-8")
+            print(f"✅ CSV salvo em {playlist_filename.resolve()}  ({len(df)} linhas)")
+    else:
+        # Original behavior - single CSV with all playlists
+        rows = []
+        total_skipped = 0
+        for pl in tqdm(iter_playlists(youtube, channel_id), desc="Playlists"):
+            video_ids = iter_videos_in_playlist(youtube, pl["id"])
+            if not video_ids:  # Skip if no videos found
+                print(f"⚠️  Playlist '{pl['title']}' está vazia, pulando...")
+                continue
+                
+            meta = get_videos_metadata(youtube, video_ids)
+            skipped = 0
+            for vid in video_ids:            # preserva a ordem da playlist
+                info = meta.get(vid)
+                if not info:  # Skip if video is unavailable
+                    skipped += 1
+                    continue
+                rows.append({
+                    "playlist": pl["title"],
+                    "videoTitle": info["title"],
+                    "description": info["description"],
+                    "duration": info["duration"],
+                })
+            
+            if skipped > 0:
+                print(f"ℹ️  {skipped} vídeo(s) indisponível(is) na playlist '{pl['title']}'")
+                total_skipped += skipped
 
-    df = pd.DataFrame(rows, columns=["playlist", "videoTitle", "description", "duration"])
-    df.to_csv(out_file, index=False, encoding="utf-8")
-    print(f"✅ CSV salvo em {out_file.resolve()}  ({len(df)} linhas)")
+        if total_skipped > 0:
+            print(f"ℹ️  Total de {total_skipped} vídeo(s) indisponível(is) em todas as playlists")
+
+        if not rows:  # Check if we have any data at all
+            print("⚠️  Nenhum dado válido encontrado em nenhuma playlist!")
+            return
+
+        df = pd.DataFrame(rows, columns=["playlist", "videoTitle", "description", "duration"])
+        df.to_csv(out_file, index=False, encoding="utf-8")
+        print(f"✅ CSV salvo em {out_file.resolve()}  ({len(df)} linhas)")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--api_key", required=True, help="YouTube Data API v3 key")
     ap.add_argument(
         "-o", "--out", default="eigensteve_playlists.csv",
-        help="CSV de saída (padrão: %(default)s)"
+        help="CSV de saída (padrão: %(default)s). Se --split for usado, será ignorado"
+    )
+    ap.add_argument(
+        "--split", action="store_true",
+        help="Gera um CSV separado para cada playlist na pasta 'playlists'"
     )
     args = ap.parse_args()
-    main(args.api_key, Path(args.out))
+    main(args.api_key, Path(args.out), args.split)
