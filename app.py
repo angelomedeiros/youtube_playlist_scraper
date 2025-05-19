@@ -7,6 +7,7 @@ import queue
 import time
 from dotenv import load_dotenv
 import pandas as pd
+import csv
 
 # Load environment variables
 load_dotenv()
@@ -46,7 +47,7 @@ def run_scraper(channel, playlists, split, output_dir):
             df = pd.DataFrame(all_data, columns=["channel", "playlist", "videoTitle", "description", "duration"])
             output_file = Path("playlists") / "all_playlists.csv"
             output_file.parent.mkdir(exist_ok=True)
-            df.to_csv(output_file, index=False, encoding="utf-8")
+            df.to_csv(output_file, index=False, encoding="utf-8", quoting=csv.QUOTE_ALL)
         
         progress_queue.put({"status": "completed", "message": "Download completed successfully!"})
     except Exception as e:

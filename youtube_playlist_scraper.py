@@ -183,8 +183,12 @@ def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_d
     safe_title = "".join(c for c in playlist['title'] if c.isalnum() or c in (' ', '-', '_')).strip()
     playlist_filename = channel_dir / f"{safe_title}.csv"
     
+    # Create directory only if we're saving a file
+    if not return_data:
+        channel_dir.mkdir(exist_ok=True)
+    
     df = pd.DataFrame(rows, columns=["channel", "playlist", "videoTitle", "description", "duration"])
-    df.to_csv(playlist_filename, index=False, encoding="utf-8")
+    df.to_csv(playlist_filename, index=False, encoding="utf-8", quoting=csv.QUOTE_ALL)
     print(f"✅ CSV salvo em {playlist_filename.resolve()}  ({len(df)} linhas)")
     return None
 
@@ -200,9 +204,10 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
     
     youtube = build("youtube", "v3", developerKey=api_key, cache_discovery=False)
     
-    # Create playlists directory
+    # Create playlists directory only if we're not returning data
     playlists_dir = Path("playlists")
-    playlists_dir.mkdir(exist_ok=True)
+    if not return_data:
+        playlists_dir.mkdir(exist_ok=True)
     
     if playlist_url:
         # Process single playlist
@@ -212,7 +217,6 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
             
         playlist = get_playlist_info(youtube, playlist_id)
         channel_dir = playlists_dir / "single_playlists"
-        channel_dir.mkdir(exist_ok=True)
         
         # Get channel name for the playlist
         channel_info = get_channel_info(youtube, playlist["channelId"])
@@ -225,7 +229,6 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
         channel_info = get_channel_info(youtube, channel_id)
         channel_name = channel_info["title"]
         channel_dir = playlists_dir / channel.lstrip("@")
-        channel_dir.mkdir(exist_ok=True)
         
         if split_by_playlist:
             # Process each playlist separately
@@ -277,7 +280,7 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
             # Save the single CSV in the channel directory
             out_file = channel_dir / out_file.name
             df = pd.DataFrame(rows, columns=["channel", "playlist", "videoTitle", "description", "duration"])
-            df.to_csv(out_file, index=False, encoding="utf-8")
+            df.to_csv(out_file, index=False, encoding="utf-8", quoting=csv.QUOTE_ALL)
             print(f"✅ CSV salvo em {out_file.resolve()}  ({len(df)} linhas)")
             return None
 
