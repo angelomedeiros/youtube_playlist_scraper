@@ -16,6 +16,7 @@ from tqdm import tqdm
 from dateutil import parser as dateparser   # só para converter ISO 8601
 from dotenv import load_dotenv
 import os
+import queue
 
 # Load environment variables
 load_dotenv()
@@ -146,16 +147,24 @@ def get_channel_info(youtube, channel_id: str) -> Dict:
         "title": items[0]["snippet"]["title"]
     }
 
-def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_dir: Path, channel_name: str = None, return_data: bool = False) -> List[Dict]:
+def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_dir: Path, channel_name: str = None, return_data: bool = False, progress_queue: queue.Queue = None) -> List[Dict]:
     """Processa uma única playlist e salva os dados."""
+    if progress_queue:
+        progress_queue.put({"status": "in_progress", "message": f"Processando playlist: {playlist['title']}", "progress": 0})
+    
     rows = []
     video_ids = iter_videos_in_playlist(youtube, playlist["id"])
     if not video_ids:  # Skip if no videos found
         print(f"⚠️  Playlist '{playlist['title']}' está vazia, pulando...")
+        if progress_queue:
+            progress_queue.put({"status": "in_progress", "message": f"Playlist vazia: {playlist['title']}", "progress": 100})
         return [] if return_data else None
         
     meta = get_videos_metadata(youtube, video_ids)
     skipped = 0
+    total_videos = len(video_ids)
+    processed = 0
+    
     for vid in video_ids:            # preserva a ordem da playlist
         info = meta.get(vid)
         if not info:  # Skip if video is unavailable
@@ -168,15 +177,31 @@ def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_d
             "description": info["description"],
             "duration": info["duration"],
         })
+        processed += 1
+        if progress_queue and processed % 5 == 0:  # Atualiza a cada 5 vídeos para reduzir o número de mensagens
+            progress = (processed / total_videos) * 100
+            progress_queue.put({
+                "status": "in_progress",
+                "message": f"Processando playlist: {playlist['title']} ({processed}/{total_videos} vídeos)",
+                "progress": progress
+            })
     
     if skipped > 0:
         print(f"ℹ️  {skipped} vídeo(s) indisponível(is) na playlist '{playlist['title']}'")
     
     if not rows:  # Skip if no valid data was collected
         print(f"⚠️  Nenhum dado válido encontrado para '{playlist['title']}', pulando...")
+        if progress_queue:
+            progress_queue.put({"status": "in_progress", "message": f"Nenhum dado válido em: {playlist['title']}", "progress": 100})
         return [] if return_data else None
 
     if return_data:
+        if progress_queue:
+            progress_queue.put({
+                "status": "in_progress",
+                "message": f"Playlist concluída: {playlist['title']}",
+                "progress": 100
+            })
         return rows
         
     # Generate filename for this playlist (sanitize filename and ensure .csv extension)
@@ -190,10 +215,17 @@ def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_d
     df = pd.DataFrame(rows, columns=["channel", "playlist", "videoTitle", "description", "duration"])
     df.to_csv(playlist_filename, index=False, encoding="utf-8", quoting=csv.QUOTE_ALL)
     print(f"✅ CSV salvo em {playlist_filename.resolve()}  ({len(df)} linhas)")
+    
+    if progress_queue:
+        progress_queue.put({
+            "status": "in_progress",
+            "message": f"Playlist concluída: {playlist['title']}",
+            "progress": 100
+        })
     return None
 
 # ---------- main ----------
-def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = False, channel: str = None, playlist_url: str = None, return_data: bool = False) -> List[Dict]:
+def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = False, channel: str = None, playlist_url: str = None, return_data: bool = False, progress_queue: queue.Queue = None) -> List[Dict]:
     # Get API key from environment if not provided
     api_key = api_key or os.getenv('YOUTUBE_API_KEY')
     if not api_key:
@@ -222,7 +254,10 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
         channel_info = get_channel_info(youtube, playlist["channelId"])
         channel_name = channel_info["title"]
         
-        return process_playlist(youtube, playlist, True, channel_dir, channel_name, return_data)
+        result = process_playlist(youtube, playlist, True, channel_dir, channel_name, return_data, progress_queue)
+        if progress_queue:
+            progress_queue.put({"status": "completed", "message": "Download concluído com sucesso!", "progress": 100})
+        return result
     else:
         # Process all playlists from channel
         channel_id = get_channel_id(youtube, channel)
@@ -230,19 +265,49 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
         channel_name = channel_info["title"]
         channel_dir = playlists_dir / channel.lstrip("@")
         
+        # Get all playlists first
+        playlists = list(iter_playlists(youtube, channel_id))
+        total_playlists = len(playlists)
+        
+        if progress_queue:
+            progress_queue.put({
+                "status": "in_progress",
+                "message": f"Iniciando processamento de {total_playlists} playlists",
+                "progress": 0
+            })
+        
         if split_by_playlist:
             # Process each playlist separately
             all_data = []
-            for pl in tqdm(iter_playlists(youtube, channel_id), desc="Playlists"):
-                result = process_playlist(youtube, pl, True, channel_dir, channel_name, return_data)
+            for i, pl in enumerate(playlists, 1):
+                if progress_queue:
+                    progress = ((i - 1) / total_playlists) * 100
+                    progress_queue.put({
+                        "status": "in_progress",
+                        "message": f"Processando playlist {i} de {total_playlists}",
+                        "progress": progress
+                    })
+                result = process_playlist(youtube, pl, True, channel_dir, channel_name, return_data, progress_queue)
                 if return_data and result:
                     all_data.extend(result)
+            
+            if progress_queue:
+                progress_queue.put({"status": "completed", "message": "Download concluído com sucesso!", "progress": 100})
             return all_data if return_data else None
         else:
-            # Original behavior - single CSV with all playlists
+            # Process all playlists into a single CSV
             rows = []
             total_skipped = 0
-            for pl in tqdm(iter_playlists(youtube, channel_id), desc="Playlists"):
+            
+            for i, pl in enumerate(playlists, 1):
+                if progress_queue:
+                    progress = ((i - 1) / total_playlists) * 100
+                    progress_queue.put({
+                        "status": "in_progress",
+                        "message": f"Processando playlist {i} de {total_playlists}",
+                        "progress": progress
+                    })
+                
                 video_ids = iter_videos_in_playlist(youtube, pl["id"])
                 if not video_ids:  # Skip if no videos found
                     print(f"⚠️  Playlist '{pl['title']}' está vazia, pulando...")
@@ -250,6 +315,9 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
                     
                 meta = get_videos_metadata(youtube, video_ids)
                 skipped = 0
+                total_videos = len(video_ids)
+                processed = 0
+                
                 for vid in video_ids:            # preserva a ordem da playlist
                     info = meta.get(vid)
                     if not info:  # Skip if video is unavailable
@@ -262,6 +330,15 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
                         "description": info["description"],
                         "duration": info["duration"],
                     })
+                    processed += 1
+                    if progress_queue and processed % 5 == 0:  # Atualiza a cada 5 vídeos
+                        playlist_progress = processed / total_videos
+                        total_progress = ((i - 1 + playlist_progress) / total_playlists) * 100
+                        progress_queue.put({
+                            "status": "in_progress",
+                            "message": f"Processando playlist {i} de {total_playlists} ({processed}/{total_videos} vídeos)",
+                            "progress": total_progress
+                        })
                 
                 if skipped > 0:
                     print(f"ℹ️  {skipped} vídeo(s) indisponível(is) na playlist '{pl['title']}'")
@@ -272,9 +349,13 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
 
             if not rows:  # Check if we have any data at all
                 print("⚠️  Nenhum dado válido encontrado em nenhuma playlist!")
+                if progress_queue:
+                    progress_queue.put({"status": "completed", "message": "Nenhum dado válido encontrado!", "progress": 100})
                 return [] if return_data else None
 
             if return_data:
+                if progress_queue:
+                    progress_queue.put({"status": "completed", "message": "Download concluído com sucesso!", "progress": 100})
                 return rows
 
             # Save the single CSV in the channel directory
@@ -282,6 +363,9 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
             df = pd.DataFrame(rows, columns=["channel", "playlist", "videoTitle", "description", "duration"])
             df.to_csv(out_file, index=False, encoding="utf-8", quoting=csv.QUOTE_ALL)
             print(f"✅ CSV salvo em {out_file.resolve()}  ({len(df)} linhas)")
+            
+            if progress_queue:
+                progress_queue.put({"status": "completed", "message": "Download concluído com sucesso!", "progress": 100})
             return None
 
 if __name__ == "__main__":

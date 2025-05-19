@@ -61,7 +61,7 @@
                         <span id="progressStatus" class="text-sm text-gray-500">Processing...</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-2.5">
-                        <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                        <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
                     </div>
                 </div>
 
@@ -86,6 +86,9 @@
     </div>
 
     <script>
+        let pollInterval = null;
+        let timeoutId = null;
+
         // Form submission
         const form = document.getElementById('scraperForm');
         const progress = document.getElementById('progress');
@@ -93,6 +96,40 @@
         const progressStatus = document.getElementById('progressStatus');
         const results = document.getElementById('results');
         const resultMessage = document.getElementById('resultMessage');
+
+        function clearPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+        }
+
+        function updateProgress(data) {
+            if (data.progress !== undefined) {
+                progressBar.style.width = `${data.progress}%`;
+            }
+            progressStatus.textContent = data.message;
+        }
+
+        function showCompletion(message) {
+            clearPolling();
+            progressBar.style.width = '100%';
+            progressStatus.textContent = message;
+            results.classList.remove('hidden');
+            resultMessage.textContent = message;
+        }
+
+        function showError(message) {
+            clearPolling();
+            progressBar.style.width = '100%';
+            progressStatus.textContent = 'Error';
+            results.classList.remove('hidden');
+            resultMessage.textContent = message;
+        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -108,11 +145,12 @@
                 return;
             }
 
-            // Show progress
+            // Reset UI
+            clearPolling();
             progress.classList.remove('hidden');
             results.classList.add('hidden');
             progressBar.style.width = '0%';
-            progressStatus.textContent = 'Processing...';
+            progressStatus.textContent = 'Iniciando download...';
 
             try {
                 const response = await fetch('/download', {
@@ -132,29 +170,33 @@
                 }
 
                 // Poll for progress
-                const pollProgress = setInterval(async () => {
-                    const progressResponse = await fetch('/progress');
-                    const progressData = await progressResponse.json();
+                pollInterval = setInterval(async () => {
+                    try {
+                        const progressResponse = await fetch('/progress');
+                        const progressData = await progressResponse.json();
 
-                    if (progressData.status === 'completed') {
-                        clearInterval(pollProgress);
-                        progressBar.style.width = '100%';
-                        progressStatus.textContent = 'Complete';
-                        results.classList.remove('hidden');
-                        resultMessage.textContent = progressData.message;
-                    } else if (progressData.status === 'error') {
-                        clearInterval(pollProgress);
-                        progressBar.style.width = '100%';
-                        progressStatus.textContent = 'Error';
-                        results.classList.remove('hidden');
-                        resultMessage.textContent = progressData.message;
+                        if (progressData.status === 'completed' || progressData.status === 'error') {
+                            showCompletion(progressData.message);
+                        } else if (progressData.status === 'in_progress') {
+                            updateProgress(progressData);
+                        } else if (progressData.status === 'idle' && !progressData.is_running) {
+                            // If we're not running and in idle state, something went wrong
+                            showError('Download não iniciado corretamente');
+                        }
+                    } catch (error) {
+                        showError('Erro ao verificar o progresso: ' + error.message);
                     }
-                }, 1000);
+                }, 500); // Poll more frequently
+
+                // Timeout after 2 minutes
+                timeoutId = setTimeout(() => {
+                    if (progressBar.style.width !== '100%') {
+                        showError('Timeout - Verifique se o download foi concluído');
+                    }
+                }, 120000); // 2 minutos
 
             } catch (error) {
-                progressStatus.textContent = 'Error';
-                results.classList.remove('hidden');
-                resultMessage.textContent = error.message;
+                showError(error.message);
             }
         });
     </script>
