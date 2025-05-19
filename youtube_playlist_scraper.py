@@ -76,7 +76,8 @@ def get_playlist_info(youtube, playlist_id: str) -> Dict:
         sys.exit("Playlist não encontrada.")
     return {
         "id": playlist_id,
-        "title": items[0]["snippet"]["title"]
+        "title": items[0]["snippet"]["title"],
+        "channelId": items[0]["snippet"]["channelId"]
     }
 
 def iter_playlists(youtube, channel_id: str) -> Generator[Dict, None, None]:
@@ -212,7 +213,12 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
         playlist = get_playlist_info(youtube, playlist_id)
         channel_dir = playlists_dir / "single_playlists"
         channel_dir.mkdir(exist_ok=True)
-        return process_playlist(youtube, playlist, True, channel_dir, return_data=return_data)
+        
+        # Get channel name for the playlist
+        channel_info = get_channel_info(youtube, playlist["channelId"])
+        channel_name = channel_info["title"]
+        
+        return process_playlist(youtube, playlist, True, channel_dir, channel_name, return_data)
     else:
         # Process all playlists from channel
         channel_id = get_channel_id(youtube, channel)
