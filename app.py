@@ -92,6 +92,8 @@ def run_scraper(channel, playlists, split, output_dir):
         total_items = 0
         processed_items = 0
         failed_playlists = []
+        total_videos_processados = 0
+        arquivos_gerados_sucesso = 0
         
         # Initialize YouTube API
         youtube = build("youtube", "v3", developerKey=os.getenv('YOUTUBE_API_KEY'), cache_discovery=False)
@@ -126,9 +128,8 @@ def run_scraper(channel, playlists, split, output_dir):
                 # Get playlist info for better progress display
                 try:
                     playlist_id = playlist_url.split('list=')[-1]
-                    if not playlist_id:
+                    if not playlist_id or 'youtube.com' not in playlist_url:
                         raise Exception("URL da playlist inválida")
-                    
                     playlist_info = get_playlist_info(youtube, playlist_id)
                     playlist_title = playlist_info["title"]
                 except Exception as e:
@@ -137,19 +138,21 @@ def run_scraper(channel, playlists, split, output_dir):
                     processed_items += 1
                     download_state["progress"] = (processed_items / total_items) * 100
                     continue
-                
                 download_state["current_playlist"] = playlist_title
                 download_state["processed_playlists"] = i - 1
                 download_state["message"] = f"Processando playlist {i}/{len(playlists)}: {playlist_title}"
-                
                 try:
                     if split:
-                        scraper_main(None, Path("playlists.csv"), True, playlist_url=playlist_url, progress_queue=None)
+                        playlist_data = scraper_main(None, Path("playlists.csv"), True, playlist_url=playlist_url, return_data=True, progress_queue=None)
+                        if playlist_data:
+                            total_videos_processados += len(playlist_data)
+                            arquivos_gerados_sucesso += 1
                     else:
-                        # Get playlist data without saving
                         playlist_data = scraper_main(None, Path("playlists.csv"), True, playlist_url=playlist_url, return_data=True, progress_queue=None)
                         if playlist_data:
                             all_data.extend(playlist_data)
+                            total_videos_processados += len(playlist_data)
+                        arquivos_gerados_sucesso = 1  # sempre 1 no modo não split
                     processed_items += 1
                     download_state["progress"] = (processed_items / total_items) * 100
                 except Exception as e:
@@ -171,15 +174,26 @@ def run_scraper(channel, playlists, split, output_dir):
         download_state["is_running"] = False
         download_state["progress"] = 100
         
+        if split:
+            arquivos_gerados = arquivos_gerados_sucesso
+            videos_processados = total_videos_processados
+        else:
+            arquivos_gerados = 1
+            videos_processados = len(all_data)
+
+        # Pluralização inteligente
+        arq_str = "arquivo gerado" if arquivos_gerados == 1 else "arquivos gerados"
+        video_str = "vídeo processado" if videos_processados == 1 else "vídeos processados"
+
         if failed_playlists:
             error_summary = "\n".join(failed_playlists)
             download_state["message"] = (
-                f"Download concluído com sucesso! {len(all_data) if not split else processed_items} itens processados.\n"
+                f"Download concluído com sucesso! {arquivos_gerados} {arq_str}, {videos_processados} {video_str}.\n"
                 f"{error_summary}"
             )
             download_state["status"] = "error"
         else:
-            download_state["message"] = f"Download concluído com sucesso! {len(all_data) if not split else processed_items} itens processados."
+            download_state["message"] = f"Download concluído com sucesso! {arquivos_gerados} {arq_str}, {videos_processados} {video_str}."
             download_state["status"] = "completed"
             
         download_state["current_playlist"] = ""
