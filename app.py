@@ -91,6 +91,7 @@ def run_scraper(channel, playlists, split, output_dir):
         all_data = []
         total_items = 0
         processed_items = 0
+        failed_playlists = []
         
         # Initialize YouTube API
         youtube = build("youtube", "v3", developerKey=os.getenv('YOUTUBE_API_KEY'), cache_discovery=False)
@@ -115,11 +116,8 @@ def run_scraper(channel, playlists, split, output_dir):
                 processed_items += 1
                 download_state["progress"] = (processed_items / total_items) * 100
             except Exception as e:
-                download_state["is_running"] = False
-                download_state["progress"] = 100
-                download_state["message"] = f"Erro ao processar canal: {str(e)}"
-                download_state["status"] = "error"
-                return
+                failed_playlists.append(f"Canal {channel}: {str(e)}")
+                download_state["message"] = f"Erro no canal {channel}, continuando com as playlists..."
         
         # Process individual playlists if provided
         if playlists:
@@ -134,15 +132,15 @@ def run_scraper(channel, playlists, split, output_dir):
                     playlist_info = get_playlist_info(youtube, playlist_id)
                     playlist_title = playlist_info["title"]
                 except Exception as e:
-                    download_state["is_running"] = False
-                    download_state["progress"] = 100
-                    download_state["message"] = f"Erro ao processar playlist {i}: {str(e)}"
-                    download_state["status"] = "error"
-                    return
+                    failed_playlists.append(f"Playlist {i}/{len(playlists)}: {str(e)}")
+                    download_state["message"] = f"Erro na playlist {i}/{len(playlists)}, continuando..."
+                    processed_items += 1
+                    download_state["progress"] = (processed_items / total_items) * 100
+                    continue
                 
                 download_state["current_playlist"] = playlist_title
                 download_state["processed_playlists"] = i - 1
-                download_state["message"] = f"Processando playlist {i} de {len(playlists)}: {playlist_title}"
+                download_state["message"] = f"Processando playlist {i}/{len(playlists)}: {playlist_title}"
                 
                 try:
                     if split:
@@ -155,11 +153,11 @@ def run_scraper(channel, playlists, split, output_dir):
                     processed_items += 1
                     download_state["progress"] = (processed_items / total_items) * 100
                 except Exception as e:
-                    download_state["is_running"] = False
-                    download_state["progress"] = 100
-                    download_state["message"] = f"Erro ao processar playlist {i}: {str(e)}"
-                    download_state["status"] = "error"
-                    return
+                    failed_playlists.append(f"Playlist {i}/{len(playlists)} ({playlist_title}): {str(e)}")
+                    download_state["message"] = f"Erro na playlist {i}/{len(playlists)} ({playlist_title}), continuando..."
+                    processed_items += 1
+                    download_state["progress"] = (processed_items / total_items) * 100
+                    continue
         
         # If not splitting, save all data to a single CSV
         if not split and all_data:
@@ -172,8 +170,15 @@ def run_scraper(channel, playlists, split, output_dir):
         # Update final state
         download_state["is_running"] = False
         download_state["progress"] = 100
-        download_state["message"] = f"Download concluído com sucesso! {len(all_data) if not split else processed_items} itens processados."
-        download_state["status"] = "completed"
+        
+        if failed_playlists:
+            error_summary = "\n".join(failed_playlists)
+            download_state["message"] = f"Download concluído com {len(failed_playlists)} erro(s):\n{error_summary}"
+            download_state["status"] = "error"
+        else:
+            download_state["message"] = f"Download concluído com sucesso! {len(all_data) if not split else processed_items} itens processados."
+            download_state["status"] = "completed"
+            
         download_state["current_playlist"] = ""
         download_state["processed_playlists"] = download_state["total_playlists"]
         
