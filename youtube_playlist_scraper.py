@@ -44,16 +44,22 @@ def iso_to_hms(iso: str) -> str:
 def extract_playlist_id(url: str) -> Optional[str]:
     """Extrai o ID da playlist de uma URL do YouTube."""
     if not url.startswith(('http://', 'https://')):
-        return None
+        raise Exception("URL inválida: deve começar com http:// ou https://")
         
     parsed = urlparse(url)
     if parsed.netloc not in ('www.youtube.com', 'youtube.com'):
-        return None
+        raise Exception("URL inválida: deve ser uma URL do YouTube")
         
-    if '/playlist' in parsed.path:
-        query = parse_qs(parsed.query)
-        return query.get('list', [None])[0]
-    return None
+    if '/playlist' not in parsed.path:
+        raise Exception("URL inválida: deve ser uma URL de playlist do YouTube")
+        
+    query = parse_qs(parsed.query)
+    playlist_id = query.get('list', [None])[0]
+    
+    if not playlist_id:
+        raise Exception("URL inválida: não foi possível encontrar o ID da playlist")
+        
+    return playlist_id
 
 # ---------- API wrappers ----------
 def get_channel_id(youtube, handle: str) -> str:
@@ -76,18 +82,26 @@ def get_channel_id(youtube, handle: str) -> str:
 
 def get_playlist_info(youtube, playlist_id: str) -> Dict:
     """Obtém informações básicas de uma playlist."""
-    resp = youtube.playlists().list(
-        id=playlist_id,
-        part="snippet"
-    ).execute()
-    items = resp.get("items", [])
-    if not items:
-        sys.exit("Playlist não encontrada.")
-    return {
-        "id": playlist_id,
-        "title": items[0]["snippet"]["title"],
-        "channelId": items[0]["snippet"]["channelId"]
-    }
+    try:
+        resp = youtube.playlists().list(
+            id=playlist_id,
+            part="snippet"
+        ).execute()
+        items = resp.get("items", [])
+        if not items:
+            raise Exception("Playlist não encontrada")
+        return {
+            "id": playlist_id,
+            "title": items[0]["snippet"]["title"],
+            "channelId": items[0]["snippet"]["channelId"]
+        }
+    except Exception as e:
+        if "quotaExceeded" in str(e):
+            raise Exception("Limite de requisições da API excedido. Tente novamente mais tarde.")
+        elif "playlistNotFound" in str(e):
+            raise Exception("Playlist não encontrada")
+        else:
+            raise Exception(f"Erro ao obter informações da playlist: {str(e)}")
 
 def iter_playlists(youtube, channel_id: str) -> Generator[Dict, None, None]:
     """Itera sobre todas as playlists públicas do canal."""

@@ -48,6 +48,11 @@ def process_channel_playlists(youtube, channel_handle, channel_name, split, prog
         download_state["status"] = "error"
         return []
     
+    if not playlists:
+        download_state["message"] = "Nenhuma playlist encontrada neste canal"
+        download_state["status"] = "error"
+        return []
+    
     total_playlists = len(playlists)
     
     download_state["total_playlists"] = total_playlists
@@ -99,41 +104,62 @@ def run_scraper(channel, playlists, split, output_dir):
         # Process channel if provided
         if channel:
             download_state["message"] = f"Processando canal: {channel}"
-            if split:
-                process_channel_playlists(youtube, channel, channel, split)
-            else:
-                # Get channel data without saving
-                channel_data = process_channel_playlists(youtube, channel, channel, split)
-                if channel_data:
-                    all_data.extend(channel_data)
-            processed_items += 1
-            download_state["progress"] = (processed_items / total_items) * 100
+            try:
+                if split:
+                    process_channel_playlists(youtube, channel, channel, split)
+                else:
+                    # Get channel data without saving
+                    channel_data = process_channel_playlists(youtube, channel, channel, split)
+                    if channel_data:
+                        all_data.extend(channel_data)
+                processed_items += 1
+                download_state["progress"] = (processed_items / total_items) * 100
+            except Exception as e:
+                download_state["is_running"] = False
+                download_state["progress"] = 100
+                download_state["message"] = f"Erro ao processar canal: {str(e)}"
+                download_state["status"] = "error"
+                return
         
         # Process individual playlists if provided
         if playlists:
             download_state["total_playlists"] = len(playlists)
             for i, playlist_url in enumerate(playlists, 1):
                 # Get playlist info for better progress display
-                playlist_id = playlist_url.split('list=')[-1]
                 try:
+                    playlist_id = playlist_url.split('list=')[-1]
+                    if not playlist_id:
+                        raise Exception("URL da playlist inválida")
+                    
                     playlist_info = get_playlist_info(youtube, playlist_id)
                     playlist_title = playlist_info["title"]
-                except:
-                    playlist_title = f"Playlist {i}"
+                except Exception as e:
+                    download_state["is_running"] = False
+                    download_state["progress"] = 100
+                    download_state["message"] = f"Erro ao processar playlist {i}: {str(e)}"
+                    download_state["status"] = "error"
+                    return
                 
                 download_state["current_playlist"] = playlist_title
                 download_state["processed_playlists"] = i - 1
                 download_state["message"] = f"Processando playlist {i} de {len(playlists)}: {playlist_title}"
                 
-                if split:
-                    scraper_main(None, Path("playlists.csv"), True, playlist_url=playlist_url, progress_queue=None)
-                else:
-                    # Get playlist data without saving
-                    playlist_data = scraper_main(None, Path("playlists.csv"), True, playlist_url=playlist_url, return_data=True, progress_queue=None)
-                    if playlist_data:
-                        all_data.extend(playlist_data)
-                processed_items += 1
-                download_state["progress"] = (processed_items / total_items) * 100
+                try:
+                    if split:
+                        scraper_main(None, Path("playlists.csv"), True, playlist_url=playlist_url, progress_queue=None)
+                    else:
+                        # Get playlist data without saving
+                        playlist_data = scraper_main(None, Path("playlists.csv"), True, playlist_url=playlist_url, return_data=True, progress_queue=None)
+                        if playlist_data:
+                            all_data.extend(playlist_data)
+                    processed_items += 1
+                    download_state["progress"] = (processed_items / total_items) * 100
+                except Exception as e:
+                    download_state["is_running"] = False
+                    download_state["progress"] = 100
+                    download_state["message"] = f"Erro ao processar playlist {i}: {str(e)}"
+                    download_state["status"] = "error"
+                    return
         
         # If not splitting, save all data to a single CSV
         if not split and all_data:
