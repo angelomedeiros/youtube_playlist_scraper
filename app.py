@@ -173,7 +173,10 @@ def run_scraper(channel, playlists, split, output_dir):
         
         if failed_playlists:
             error_summary = "\n".join(failed_playlists)
-            download_state["message"] = f"Download concluído com {len(failed_playlists)} erro(s):\n{error_summary}"
+            download_state["message"] = (
+                f"Download concluído com sucesso! {len(all_data) if not split else processed_items} itens processados.\n"
+                f"{error_summary}"
+            )
             download_state["status"] = "error"
         else:
             download_state["message"] = f"Download concluído com sucesso! {len(all_data) if not split else processed_items} itens processados."

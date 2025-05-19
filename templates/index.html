@@ -80,7 +80,7 @@
                 </div>
 
                 <!-- Results Section -->
-                <div id="results" class="mt-6 hidden">
+                <div id="results" class="mt-6 hidden space-y-4">
                     <div id="successCard" class="bg-green-50 border border-green-200 rounded-md p-4 hidden">
                         <div class="flex">
                             <div class="flex-shrink-0">
@@ -100,7 +100,7 @@
                                 <i class="fas fa-exclamation-circle text-red-400"></i>
                             </div>
                             <div class="ml-3 w-full">
-                                <h3 class="text-sm font-medium text-red-800">Erro no Download</h3>
+                                <h3 class="text-sm font-medium text-red-800">Playlists com Erro</h3>
                                 <div class="mt-2 text-sm text-red-700">
                                     <p id="errorMessage" class="whitespace-pre-line"></p>
                                 </div>
@@ -160,14 +160,25 @@
             }
         }
 
-        function showCompletion(message) {
+        function showCompletion(message, errorMsg = null) {
             clearPolling();
             progressBar.style.width = '100%';
             progressPercentage.textContent = '100%';
             results.classList.remove('hidden');
+
+            // Sempre mostra o card de sucesso
             successCard.classList.remove('hidden');
-            errorCard.classList.add('hidden');
             resultMessage.textContent = message;
+
+            // Só mostra o card de erro se houver detalhes
+            if (errorMsg && errorMsg.trim().length > 0) {
+                errorCard.classList.remove('hidden');
+                errorMessage.textContent = errorMsg;
+            } else {
+                errorCard.classList.add('hidden');
+                errorMessage.textContent = '';
+            }
+
             playlistProgress.textContent = message;
         }
 
@@ -232,7 +243,17 @@
                         if (progressData.status === 'completed') {
                             showCompletion(progressData.message);
                         } else if (progressData.status === 'error') {
-                            showError(progressData.message);
+                            // Separar a mensagem de sucesso da lista de erros
+                            if (progressData.message.startsWith('Download concluído com')) {
+                                const lines = progressData.message.split('\n');
+                                const successMsg = lines[0];
+                                // Pega apenas linhas que realmente têm erro (ignorando linhas em branco)
+                                const errorMsgs = lines.slice(1).filter(line => line.trim()).join('\n');
+                                // Só mostra o card vermelho se houver erro real
+                                showCompletion(successMsg, errorMsgs.length > 0 ? errorMsgs : null);
+                            } else {
+                                showError(progressData.message);
+                            }
                         } else if (progressData.status === 'in_progress') {
                             updateProgress(progressData);
                         } else if (progressData.status === 'idle' && !progressData.is_running) {
