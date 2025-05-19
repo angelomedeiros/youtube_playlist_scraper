@@ -6,6 +6,7 @@ import threading
 import queue
 import time
 from dotenv import load_dotenv
+import pandas as pd
 
 # Load environment variables
 load_dotenv()
@@ -18,14 +19,34 @@ progress_queue = queue.Queue()
 def run_scraper(channel, playlists, split, output_dir):
     """Run the scraper in a separate thread and update progress"""
     try:
+        all_data = []
+        
         # Process channel if provided
         if channel:
-            scraper_main(None, Path("playlists.csv"), split, channel=channel)
+            if split:
+                scraper_main(None, Path("playlists.csv"), True, channel=channel)
+            else:
+                # Get channel data without saving
+                channel_data = scraper_main(None, Path("playlists.csv"), True, channel=channel, return_data=True)
+                all_data.extend(channel_data)
         
         # Process individual playlists if provided
         if playlists:
-            for playlist in playlists:
-                scraper_main(None, Path("playlists.csv"), split, playlist_url=playlist)
+            if split:
+                for playlist in playlists:
+                    scraper_main(None, Path("playlists.csv"), True, playlist_url=playlist)
+            else:
+                for playlist in playlists:
+                    # Get playlist data without saving
+                    playlist_data = scraper_main(None, Path("playlists.csv"), True, playlist_url=playlist, return_data=True)
+                    all_data.extend(playlist_data)
+        
+        # If not splitting, save all data to a single CSV
+        if not split and all_data:
+            df = pd.DataFrame(all_data, columns=["channel", "playlist", "videoTitle", "description", "duration"])
+            output_file = Path("playlists") / "all_playlists.csv"
+            output_file.parent.mkdir(exist_ok=True)
+            df.to_csv(output_file, index=False, encoding="utf-8")
         
         progress_queue.put({"status": "completed", "message": "Download completed successfully!"})
     except Exception as e:

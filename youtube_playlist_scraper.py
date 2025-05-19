@@ -145,13 +145,13 @@ def get_channel_info(youtube, channel_id: str) -> Dict:
         "title": items[0]["snippet"]["title"]
     }
 
-def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_dir: Path, channel_name: str = None) -> None:
+def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_dir: Path, channel_name: str = None, return_data: bool = False) -> List[Dict]:
     """Processa uma única playlist e salva os dados."""
     rows = []
     video_ids = iter_videos_in_playlist(youtube, playlist["id"])
     if not video_ids:  # Skip if no videos found
         print(f"⚠️  Playlist '{playlist['title']}' está vazia, pulando...")
-        return
+        return [] if return_data else None
         
     meta = get_videos_metadata(youtube, video_ids)
     skipped = 0
@@ -173,7 +173,10 @@ def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_d
     
     if not rows:  # Skip if no valid data was collected
         print(f"⚠️  Nenhum dado válido encontrado para '{playlist['title']}', pulando...")
-        return
+        return [] if return_data else None
+
+    if return_data:
+        return rows
         
     # Generate filename for this playlist (sanitize filename and ensure .csv extension)
     safe_title = "".join(c for c in playlist['title'] if c.isalnum() or c in (' ', '-', '_')).strip()
@@ -182,9 +185,10 @@ def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_d
     df = pd.DataFrame(rows, columns=["channel", "playlist", "videoTitle", "description", "duration"])
     df.to_csv(playlist_filename, index=False, encoding="utf-8")
     print(f"✅ CSV salvo em {playlist_filename.resolve()}  ({len(df)} linhas)")
+    return None
 
 # ---------- main ----------
-def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = False, channel: str = None, playlist_url: str = None):
+def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = False, channel: str = None, playlist_url: str = None, return_data: bool = False) -> List[Dict]:
     # Get API key from environment if not provided
     api_key = api_key or os.getenv('YOUTUBE_API_KEY')
     if not api_key:
@@ -208,7 +212,7 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
         playlist = get_playlist_info(youtube, playlist_id)
         channel_dir = playlists_dir / "single_playlists"
         channel_dir.mkdir(exist_ok=True)
-        process_playlist(youtube, playlist, True, channel_dir)
+        return process_playlist(youtube, playlist, True, channel_dir, return_data=return_data)
     else:
         # Process all playlists from channel
         channel_id = get_channel_id(youtube, channel)
@@ -219,8 +223,12 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
         
         if split_by_playlist:
             # Process each playlist separately
+            all_data = []
             for pl in tqdm(iter_playlists(youtube, channel_id), desc="Playlists"):
-                process_playlist(youtube, pl, True, channel_dir, channel_name)
+                result = process_playlist(youtube, pl, True, channel_dir, channel_name, return_data)
+                if return_data and result:
+                    all_data.extend(result)
+            return all_data if return_data else None
         else:
             # Original behavior - single CSV with all playlists
             rows = []
@@ -255,13 +263,17 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
 
             if not rows:  # Check if we have any data at all
                 print("⚠️  Nenhum dado válido encontrado em nenhuma playlist!")
-                return
+                return [] if return_data else None
+
+            if return_data:
+                return rows
 
             # Save the single CSV in the channel directory
             out_file = channel_dir / out_file.name
             df = pd.DataFrame(rows, columns=["channel", "playlist", "videoTitle", "description", "duration"])
             df.to_csv(out_file, index=False, encoding="utf-8")
             print(f"✅ CSV salvo em {out_file.resolve()}  ({len(df)} linhas)")
+            return None
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
