@@ -63,6 +63,7 @@
                     <div class="w-full bg-gray-200 rounded-full h-2.5">
                         <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
                     </div>
+                    <div id="playlistProgress" class="mt-2 text-sm text-gray-600"></div>
                 </div>
 
                 <!-- Results Section -->
@@ -94,6 +95,7 @@
         const progress = document.getElementById('progress');
         const progressBar = document.getElementById('progressBar');
         const progressStatus = document.getElementById('progressStatus');
+        const playlistProgress = document.getElementById('playlistProgress');
         const results = document.getElementById('results');
         const resultMessage = document.getElementById('resultMessage');
 
@@ -113,6 +115,17 @@
                 progressBar.style.width = `${data.progress}%`;
             }
             progressStatus.textContent = data.message;
+            
+            // Update playlist progress
+            if (data.total_playlists > 0) {
+                let progressText = `Playlists: ${data.processed_playlists} de ${data.total_playlists}`;
+                if (data.current_playlist) {
+                    progressText += ` (Atual: ${data.current_playlist})`;
+                }
+                playlistProgress.textContent = progressText;
+            } else {
+                playlistProgress.textContent = '';
+            }
         }
 
         function showCompletion(message) {
@@ -121,6 +134,7 @@
             progressStatus.textContent = message;
             results.classList.remove('hidden');
             resultMessage.textContent = message;
+            playlistProgress.textContent = '';
         }
 
         function showError(message) {
@@ -129,6 +143,7 @@
             progressStatus.textContent = 'Error';
             results.classList.remove('hidden');
             resultMessage.textContent = message;
+            playlistProgress.textContent = '';
         }
 
         form.addEventListener('submit', async (e) => {
