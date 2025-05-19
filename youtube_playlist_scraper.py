@@ -14,6 +14,11 @@ import pandas as pd
 from googleapiclient.discovery import build
 from tqdm import tqdm
 from dateutil import parser as dateparser   # só para converter ISO 8601
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
 
 # ---------- helpers ----------
 ISO_DUR_RE = re.compile(
@@ -127,7 +132,20 @@ def get_videos_metadata(youtube, video_ids: List[str]) -> Dict[str, Dict]:
             }
     return meta
 
-def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_dir: Path) -> None:
+def get_channel_info(youtube, channel_id: str) -> Dict:
+    """Obtém informações do canal."""
+    resp = youtube.channels().list(
+        id=channel_id,
+        part="snippet"
+    ).execute()
+    items = resp.get("items", [])
+    if not items:
+        return {"title": "Unknown Channel"}
+    return {
+        "title": items[0]["snippet"]["title"]
+    }
+
+def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_dir: Path, channel_name: str = None) -> None:
     """Processa uma única playlist e salva os dados."""
     rows = []
     video_ids = iter_videos_in_playlist(youtube, playlist["id"])
@@ -143,6 +161,7 @@ def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_d
             skipped += 1
             continue
         rows.append({
+            "channel": channel_name or "Unknown Channel",
             "playlist": playlist["title"],
             "videoTitle": info["title"],
             "description": info["description"],
@@ -160,12 +179,20 @@ def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_d
     safe_title = "".join(c for c in playlist['title'] if c.isalnum() or c in (' ', '-', '_')).strip()
     playlist_filename = channel_dir / f"{safe_title}.csv"
     
-    df = pd.DataFrame(rows, columns=["playlist", "videoTitle", "description", "duration"])
+    df = pd.DataFrame(rows, columns=["channel", "playlist", "videoTitle", "description", "duration"])
     df.to_csv(playlist_filename, index=False, encoding="utf-8")
     print(f"✅ CSV salvo em {playlist_filename.resolve()}  ({len(df)} linhas)")
 
 # ---------- main ----------
-def main(api_key: str, out_file: Path, split_by_playlist: bool = False, channel: str = None, playlist_url: str = None):
+def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = False, channel: str = None, playlist_url: str = None):
+    # Get API key from environment if not provided
+    api_key = api_key or os.getenv('YOUTUBE_API_KEY')
+    if not api_key:
+        sys.exit("Error: YouTube API key not found. Please set YOUTUBE_API_KEY in .env file or provide it via --api_key")
+    
+    # Set default output file if not provided
+    out_file = out_file or Path("playlists.csv")
+    
     youtube = build("youtube", "v3", developerKey=api_key, cache_discovery=False)
     
     # Create playlists directory
@@ -185,13 +212,15 @@ def main(api_key: str, out_file: Path, split_by_playlist: bool = False, channel:
     else:
         # Process all playlists from channel
         channel_id = get_channel_id(youtube, channel)
+        channel_info = get_channel_info(youtube, channel_id)
+        channel_name = channel_info["title"]
         channel_dir = playlists_dir / channel.lstrip("@")
         channel_dir.mkdir(exist_ok=True)
         
         if split_by_playlist:
             # Process each playlist separately
             for pl in tqdm(iter_playlists(youtube, channel_id), desc="Playlists"):
-                process_playlist(youtube, pl, True, channel_dir)
+                process_playlist(youtube, pl, True, channel_dir, channel_name)
         else:
             # Original behavior - single CSV with all playlists
             rows = []
@@ -210,6 +239,7 @@ def main(api_key: str, out_file: Path, split_by_playlist: bool = False, channel:
                         skipped += 1
                         continue
                     rows.append({
+                        "channel": channel_name,
                         "playlist": pl["title"],
                         "videoTitle": info["title"],
                         "description": info["description"],
@@ -229,13 +259,13 @@ def main(api_key: str, out_file: Path, split_by_playlist: bool = False, channel:
 
             # Save the single CSV in the channel directory
             out_file = channel_dir / out_file.name
-            df = pd.DataFrame(rows, columns=["playlist", "videoTitle", "description", "duration"])
+            df = pd.DataFrame(rows, columns=["channel", "playlist", "videoTitle", "description", "duration"])
             df.to_csv(out_file, index=False, encoding="utf-8")
             print(f"✅ CSV salvo em {out_file.resolve()}  ({len(df)} linhas)")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--api_key", required=True, help="YouTube Data API v3 key")
+    ap.add_argument("--api_key", help="YouTube Data API v3 key (optional if set in .env file)")
     ap.add_argument(
         "-o", "--out", default="playlists.csv",
         help="CSV de saída (padrão: %(default)s). Se --split for usado, será ignorado"

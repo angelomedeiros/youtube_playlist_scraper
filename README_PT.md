@@ -23,6 +23,7 @@ Um script Python para baixar metadados de playlists do YouTube usando a YouTube 
 - pandas
 - tqdm
 - dateutil
+- python-dotenv
 
 ## Instalação
 
@@ -40,22 +41,35 @@ pip install -r requirements.txt
 ```
 
 3. Obtenha uma chave de API do YouTube:
+
    - Acesse o [Google Cloud Console](https://console.cloud.google.com/)
    - Crie um novo projeto
    - Ative a YouTube Data API v3
    - Crie uma chave de API
+
+4. Crie um arquivo `.env` na raiz do projeto:
+
+```bash
+cp .env.example .env
+```
+
+5. Edite o arquivo `.env` e adicione sua chave de API do YouTube:
+
+```
+YOUTUBE_API_KEY=sua_chave_api_aqui
+```
 
 ## Uso
 
 ### Comando Básico
 
 ```bash
-python youtube_playlist_scraper.py --api_key SUA_CHAVE_API
+python youtube_playlist_scraper.py
 ```
 
 ### Opções Disponíveis
 
-- `--api_key`: (Obrigatório) Sua chave da YouTube Data API v3
+- `--api_key`: (Opcional) Sua chave da YouTube Data API v3 (se não estiver definida no arquivo .env)
 - `-c, --channel`: Handle do canal (ex: "@NomeDoCanal")
 - `-p, --playlist`: URL da playlist do YouTube
 - `-o, --out`: Nome do arquivo CSV de saída (padrão: "playlists.csv")
@@ -68,19 +82,19 @@ Nota: Você deve fornecer ou `-c/--channel` ou `-p/--playlist`, mas não ambos.
 1. Baixar todas as playlists de um canal:
 
 ```bash
-python youtube_playlist_scraper.py --api_key SUA_CHAVE_API -c "@NomeDoCanal"
+python youtube_playlist_scraper.py -c "@NomeDoCanal"
 ```
 
 2. Baixar uma única playlist:
 
 ```bash
-python youtube_playlist_scraper.py --api_key SUA_CHAVE_API -p "https://www.youtube.com/playlist?list=ID_DA_PLAYLIST"
+python youtube_playlist_scraper.py -p "https://www.youtube.com/playlist?list=ID_DA_PLAYLIST"
 ```
 
 3. Gerar um arquivo CSV separado para cada playlist de um canal:
 
 ```bash
-python youtube_playlist_scraper.py --api_key SUA_CHAVE_API -c "@NomeDoCanal" --split
+python youtube_playlist_scraper.py -c "@NomeDoCanal" --split
 ```
 
 ## Estrutura de Arquivos
@@ -102,6 +116,7 @@ playlists/
 
 Os arquivos CSV gerados contêm as seguintes colunas:
 
+- `channel`: Nome do canal
 - `playlist`: Nome da playlist
 - `videoTitle`: Título do vídeo
 - `description`: Descrição do vídeo
@@ -113,6 +128,7 @@ Os arquivos CSV gerados contêm as seguintes colunas:
 - Playlists vazias são puladas
 - O script mostra mensagens informativas sobre vídeos indisponíveis
 - Os nomes dos arquivos são sanitizados para remover caracteres inválidos
+- A chave de API pode ser definida no arquivo `.env` ou passada via linha de comando
 
 ## Limitações
 

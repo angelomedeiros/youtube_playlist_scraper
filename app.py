@@ -5,20 +5,24 @@ from youtube_playlist_scraper import main as scraper_main
 import threading
 import queue
 import time
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 
 # Queue for storing progress updates
 progress_queue = queue.Queue()
 
-def run_scraper(api_key, channel, playlists, split, output_dir):
+def run_scraper(channel, playlists, split, output_dir):
     """Run the scraper in a separate thread and update progress"""
     try:
         if channel:
-            scraper_main(api_key, Path("playlists.csv"), split, channel=channel)
+            scraper_main(None, Path("playlists.csv"), split, channel=channel)
         else:
             for playlist in playlists:
-                scraper_main(api_key, Path("playlists.csv"), split, playlist_url=playlist)
+                scraper_main(None, Path("playlists.csv"), split, playlist_url=playlist)
         progress_queue.put({"status": "completed", "message": "Download completed successfully!"})
     except Exception as e:
         progress_queue.put({"status": "error", "message": str(e)})
@@ -30,13 +34,9 @@ def index():
 @app.route('/download', methods=['POST'])
 def download():
     data = request.json
-    api_key = data.get('api_key')
     channel = data.get('channel')
     playlists = data.get('playlists', [])
     split = data.get('split', False)
-    
-    if not api_key:
-        return jsonify({"error": "API key is required"}), 400
     
     if not channel and not playlists:
         return jsonify({"error": "Either channel or playlist(s) must be provided"}), 400
@@ -44,7 +44,7 @@ def download():
     # Start scraper in a separate thread
     thread = threading.Thread(
         target=run_scraper,
-        args=(api_key, channel, playlists, split, "playlists")
+        args=(channel, playlists, split, "playlists")
     )
     thread.start()
     

@@ -23,6 +23,7 @@ A Python script to download metadata from YouTube playlists using the YouTube Da
 - pandas
 - tqdm
 - dateutil
+- python-dotenv
 
 ## Installation
 
@@ -40,22 +41,35 @@ pip install -r requirements.txt
 ```
 
 3. Get a YouTube API key:
+
    - Visit the [Google Cloud Console](https://console.cloud.google.com/)
    - Create a new project
    - Enable the YouTube Data API v3
    - Create an API key
+
+4. Create a `.env` file in the project root:
+
+```bash
+cp .env.example .env
+```
+
+5. Edit the `.env` file and add your YouTube API key:
+
+```
+YOUTUBE_API_KEY=your_api_key_here
+```
 
 ## Usage
 
 ### Basic Command
 
 ```bash
-python youtube_playlist_scraper.py --api_key YOUR_API_KEY
+python youtube_playlist_scraper.py
 ```
 
 ### Available Options
 
-- `--api_key`: (Required) Your YouTube Data API v3 key
+- `--api_key`: (Optional) Your YouTube Data API v3 key (if not set in .env file)
 - `-c, --channel`: Channel handle (e.g., "@ChannelName")
 - `-p, --playlist`: YouTube playlist URL
 - `-o, --out`: Output CSV filename (default: "playlists.csv")
@@ -68,19 +82,19 @@ Note: You must provide either `-c/--channel` or `-p/--playlist`, but not both.
 1. Download all playlists from a channel:
 
 ```bash
-python youtube_playlist_scraper.py --api_key YOUR_API_KEY -c "@ChannelName"
+python youtube_playlist_scraper.py -c "@ChannelName"
 ```
 
 2. Download a single playlist:
 
 ```bash
-python youtube_playlist_scraper.py --api_key YOUR_API_KEY -p "https://www.youtube.com/playlist?list=PLAYLIST_ID"
+python youtube_playlist_scraper.py -p "https://www.youtube.com/playlist?list=PLAYLIST_ID"
 ```
 
 3. Generate a separate CSV file for each playlist in a channel:
 
 ```bash
-python youtube_playlist_scraper.py --api_key YOUR_API_KEY -c "@ChannelName" --split
+python youtube_playlist_scraper.py -c "@ChannelName" --split
 ```
 
 ## File Structure
@@ -102,6 +116,7 @@ playlists/
 
 The generated CSV files contain the following columns:
 
+- `channel`: Channel name
 - `playlist`: Playlist name
 - `videoTitle`: Video title
 - `description`: Video description
@@ -113,6 +128,7 @@ The generated CSV files contain the following columns:
 - Empty playlists are skipped
 - The script shows informative messages about unavailable videos
 - Filenames are sanitized to remove invalid characters
+- API key can be set in `.env` file or passed via command line
 
 ## Limitations
 
