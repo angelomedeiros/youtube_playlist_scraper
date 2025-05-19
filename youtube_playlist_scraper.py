@@ -58,13 +58,21 @@ def extract_playlist_id(url: str) -> Optional[str]:
 # ---------- API wrappers ----------
 def get_channel_id(youtube, handle: str) -> str:
     """Pesquisa o handle e devolve o channelId."""
-    resp = youtube.search().list(
-        q=handle, type="channel", part="snippet", maxResults=1
-    ).execute()
-    items = resp.get("items", [])
-    if not items:
-        sys.exit("Handle não encontrado.")
-    return items[0]["snippet"]["channelId"]
+    try:
+        resp = youtube.search().list(
+            q=handle, type="channel", part="snippet", maxResults=1
+        ).execute()
+        items = resp.get("items", [])
+        if not items:
+            raise Exception(f"Canal não encontrado: {handle}")
+        return items[0]["snippet"]["channelId"]
+    except Exception as e:
+        if "quotaExceeded" in str(e):
+            raise Exception("Limite de requisições da API excedido. Tente novamente mais tarde.")
+        elif "channelNotFound" in str(e):
+            raise Exception(f"Canal não encontrado: {handle}")
+        else:
+            raise Exception(f"Erro ao buscar canal: {str(e)}")
 
 def get_playlist_info(youtube, playlist_id: str) -> Dict:
     """Obtém informações básicas de uma playlist."""
@@ -225,7 +233,7 @@ def process_playlist(youtube, playlist: Dict, split_by_playlist: bool, channel_d
     return None
 
 # ---------- main ----------
-def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = False, channel: str = None, playlist_url: str = None, return_data: bool = False, progress_queue: queue.Queue = None) -> List[Dict]:
+def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = False, channel: str = None, playlist_url: str = None, playlist_id: str = None, return_data: bool = False, progress_queue: queue.Queue = None) -> List[Dict]:
     # Get API key from environment if not provided
     api_key = api_key or os.getenv('YOUTUBE_API_KEY')
     if not api_key:
@@ -241,12 +249,13 @@ def main(api_key: str = None, out_file: Path = None, split_by_playlist: bool = F
     if not return_data:
         playlists_dir.mkdir(exist_ok=True)
     
-    if playlist_url:
+    if playlist_url or playlist_id:
         # Process single playlist
-        playlist_id = extract_playlist_id(playlist_url)
-        if not playlist_id:
-            sys.exit("URL da playlist inválida.")
-            
+        if playlist_url:
+            playlist_id = extract_playlist_id(playlist_url)
+            if not playlist_id:
+                sys.exit("URL da playlist inválida.")
+        
         playlist = get_playlist_info(youtube, playlist_id)
         channel_dir = playlists_dir / "single_playlists"
         

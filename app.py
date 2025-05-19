@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_file
 import os
 from pathlib import Path
-from youtube_playlist_scraper import main as scraper_main, get_playlist_info
+from youtube_playlist_scraper import main as scraper_main, get_playlist_info, iter_playlists, get_channel_id
 import threading
 import queue
 import time
@@ -27,6 +27,46 @@ download_state = {
     "current_video": 0,
     "total_videos": 0
 }
+
+def process_channel_playlists(youtube, channel_handle, channel_name, split, progress_queue=None):
+    """Processa todas as playlists de um canal"""
+    all_data = []
+    
+    # Primeiro, obtém o ID do canal usando o handle
+    try:
+        channel_id = get_channel_id(youtube, channel_handle)
+    except Exception as e:
+        download_state["message"] = f"Erro ao encontrar o canal: {str(e)}"
+        download_state["status"] = "error"
+        return []
+    
+    # Agora obtém as playlists usando o ID do canal
+    try:
+        playlists = list(iter_playlists(youtube, channel_id))
+    except Exception as e:
+        download_state["message"] = f"Erro ao obter playlists do canal: {str(e)}"
+        download_state["status"] = "error"
+        return []
+    
+    total_playlists = len(playlists)
+    
+    download_state["total_playlists"] = total_playlists
+    download_state["processed_playlists"] = 0
+    
+    for i, pl in enumerate(playlists, 1):
+        download_state["current_playlist"] = pl["title"]
+        download_state["processed_playlists"] = i - 1
+        download_state["message"] = f"Processando playlist {i} de {total_playlists}: {pl['title']}"
+        download_state["progress"] = (i - 1) / total_playlists * 100
+        
+        if split:
+            scraper_main(None, Path("playlists.csv"), True, channel=channel_id, playlist_id=pl["id"], progress_queue=progress_queue)
+        else:
+            playlist_data = scraper_main(None, Path("playlists.csv"), True, channel=channel_id, playlist_id=pl["id"], return_data=True, progress_queue=progress_queue)
+            if playlist_data:
+                all_data.extend(playlist_data)
+    
+    return all_data
 
 def run_scraper(channel, playlists, split, output_dir):
     """Run the scraper in a separate thread and update progress"""
@@ -60,10 +100,10 @@ def run_scraper(channel, playlists, split, output_dir):
         if channel:
             download_state["message"] = f"Processando canal: {channel}"
             if split:
-                scraper_main(None, Path("playlists.csv"), True, channel=channel, progress_queue=None)
+                process_channel_playlists(youtube, channel, channel, split)
             else:
                 # Get channel data without saving
-                channel_data = scraper_main(None, Path("playlists.csv"), True, channel=channel, return_data=True, progress_queue=None)
+                channel_data = process_channel_playlists(youtube, channel, channel, split)
                 if channel_data:
                     all_data.extend(channel_data)
             processed_items += 1
