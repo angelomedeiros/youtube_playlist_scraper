@@ -6,6 +6,19 @@
     <title>YouTube Playlist Scraper</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .truncate-text {
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        @media (min-width: 640px) {
+            .truncate-text {
+                max-width: 500px;
+            }
+        }
+    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="container mx-auto px-4 py-8">
@@ -58,12 +71,12 @@
                 <div id="progress" class="mt-6 hidden">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-sm font-medium text-gray-700">Progress</span>
-                        <span id="progressStatus" class="text-sm text-gray-500">Processing...</span>
+                        <span id="progressStatus" class="text-sm text-gray-500 truncate-text">Processing...</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-2.5">
                         <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
                     </div>
-                    <div id="playlistProgress" class="mt-2 text-sm text-gray-600"></div>
+                    <div id="playlistProgress" class="mt-2 text-sm text-gray-600 truncate-text"></div>
                 </div>
 
                 <!-- Results Section -->
@@ -76,7 +89,7 @@
                             <div class="ml-3">
                                 <h3 class="text-sm font-medium text-green-800">Download Complete</h3>
                                 <div class="mt-2 text-sm text-green-700">
-                                    <p id="resultMessage"></p>
+                                    <p id="resultMessage" class="truncate-text"></p>
                                 </div>
                             </div>
                         </div>
