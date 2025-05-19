@@ -18,11 +18,15 @@ progress_queue = queue.Queue()
 def run_scraper(channel, playlists, split, output_dir):
     """Run the scraper in a separate thread and update progress"""
     try:
+        # Process channel if provided
         if channel:
             scraper_main(None, Path("playlists.csv"), split, channel=channel)
-        else:
+        
+        # Process individual playlists if provided
+        if playlists:
             for playlist in playlists:
                 scraper_main(None, Path("playlists.csv"), split, playlist_url=playlist)
+        
         progress_queue.put({"status": "completed", "message": "Download completed successfully!"})
     except Exception as e:
         progress_queue.put({"status": "error", "message": str(e)})
